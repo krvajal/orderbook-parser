@@ -1,11 +1,11 @@
 {
   "name": "orderbook-parser",
   "version": "1.0.0",
-  "main": "src/index.js",
+  "main": "index.js",
   "author": "Keyrock",
   "license": "MIT",
   "scripts": {
-    "start": "node src"
+    "start": "node index.js"
   },
   "dependencies": {
     "axios": "^0.19.2",

@@ -4,7 +4,6 @@ const http = require("http");
 const axios = require("axios");
 const cors = require("cors");
 const io = require("socket.io");
-const { Kraken } = require("./lib/kraken");
 const { OrderBook } = require("./lib/order_book");
 
 const app = express();
@@ -23,38 +22,41 @@ const PORT = process.env.PORT || 8080;
 
 const httpServer = http.Server(app);
 
-const socketServer = io({ serveClient: false });
+const socketServer = io({ serveClient: false, transports: ["websocket"] });
 
 const exchanges = new Map();
+
+function getExchange(symbol) {
+  let exchange;
+  if (!exchanges.has(symbol)) {
+    exchange = new OrderBook({ symbol });
+    exchanges.set(symbol, exchange);
+  } else {
+    exchange = exchanges.get(symbol);
+  }
+  return exchange;
+}
 
 socketServer.on("connection", function onConnection(socket) {
   let subscriptions = [];
   socket.on("subscribe", ({ symbol }) => {
-    const sink = {
-      snapshot({ bids, asks }) {
-        socket.emit(`${symbol}:book_snapshot`, {
-          bids,
-          asks
-        });
-      },
-      update({ bids, asks }) {
-        socket.emit(`${symbol}:book_update`, {
-          bids,
-          asks
-        });
-      }
-    };
-    let exchange;
-    if (!exchanges.has(symbol)) {
-      exchange = new Kraken({
-        symbol: symbol,
-        depth: 10
-      });
-      exchanges.set(symbol, exchange);
-    } else {
-      exchange = exchanges.get(symbol);
-    }
-    subscriptions.push(exchange.subscribe(sink));
+    const exchange = getExchange(symbol);
+
+    subscriptions.push(
+      exchange.subscribe((type, payload) => {
+        if (type === "snapshot") {
+          const { asks, bids } = payload;
+          socket.emit(`${symbol}:book_snapshot`, { asks, bids });
+        }
+        if (type === "update") {
+          const { asks, bids, pos } = payload;
+          socket.emit(`${symbol}:book_update`, { asks, bids, pos });
+        }
+        if (type === "speed") {
+          socket.emit(`${symbol}:speed_update`, payload);
+        }
+      })
+    );
   });
 
   socket.on("disconnect", function onDisconnected() {

@@ -10,12 +10,26 @@ Example projects that shows how to obtain orderbook snapshots from Kraken.
 ## How to install
 
 - `git clone` this repo
-- Run `yarn` to install the dependencies
+- Run `(cd api && yarn install)` to install the server dependencies
+- Run `(cd web && yarn install)` to install the server dependencies
 
 ## How to run
 
-Just `yarn start`.
+This repo is composed of two apps.
 
+- One is a node app which have a tiny express server. To run the server
+
+```bash
+cd api && yarn start
+```
+
+- The other is a web client written in React. To run the client on dev mode you need to
+
+```
+cd web && yarn dev
+```
+
+This will start the client app on http://localhost:3000 and it will get connected to the express server.
 
 ### Questions
 
