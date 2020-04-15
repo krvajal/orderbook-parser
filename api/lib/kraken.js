@@ -1,11 +1,10 @@
 const WebSocket = require("ws");
+const debug = require("debug")("kraken");
 
-function Kraken({ symbol, depth = 100 }) {
+function Kraken({ symbol, depth = 100, sink }) {
   const ws = new WebSocket("wss://ws.kraken.com");
-
-  this.sinks = []
   ws.onopen = function onOpen() {
-    console.log("[kraken] Connection open");
+    debug("connection open");
 
     ws.send(
       JSON.stringify({
@@ -21,7 +20,6 @@ function Kraken({ symbol, depth = 100 }) {
 
   //  On subscription, a snapshot will be published at the specified depth, following the snapshot, level updates will be published
   ws.onmessage = ({ data }) => {
-    console.log(data);
     const payload = JSON.parse(data);
 
     if (Array.isArray(payload)) {
@@ -33,17 +31,16 @@ function Kraken({ symbol, depth = 100 }) {
 
       if (bids && asks) {
         // order book snapshot
-        this.sinks.map(sink => sink.snapshot({ bids, asks }))
-
+        sink.snapshot({ bids, asks });
       } else {
         // These are updates, not orderbook snapshots. In a normal implementation they should update the last
         // orderbook snapshot in memory and deliver the up-to-date orderbook.
-        this.sinks.map(sink => sink.update({ bids: bid, asks: ask }))
+        sink.update({ bids: bid, asks: ask });
       }
     } else {
       const { event } = payload;
       if (event === "heartbeat") {
-        console.log("[kraken] Heartbeat received");
+        debug("heartbeat received");
       } else if (["systemStatus", "subscriptionStatus"].includes(event)) {
         // do nothing
       } else {
@@ -62,15 +59,8 @@ function Kraken({ symbol, depth = 100 }) {
   };
 }
 
-Kraken.prototype.subscribe = function subscribe(newSink) {
-    this.sinks.push(newSink)
-    // return an unsubscribe function
-    return () => this.sinks.filter(sink => sink != newSink)
-}
-
 // example usage
-// const exchange = Kraken({ symbol: "ETH/XBT" });
-// exchange.subscribe({update, snapshot})
+// const exchange = Kraken({ symbol: "ETH/XBT", sink });
 
 module.exports = { Kraken };
 
