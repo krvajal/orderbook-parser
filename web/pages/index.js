@@ -3,7 +3,7 @@ import OrderBook from "../components/order_book";
 import MarketList from "../components/market_list";
 
 export default function IndexPage() {
-  const [markets, setMarkets] = React.useState([]);
+  const [markets, setMarkets] = React.useState([{ wsname: "ETH/EUR" }]);
   const [showMarkerSelector, setShowMarketSelector] = React.useState(false);
 
   return (
@@ -27,8 +27,10 @@ export default function IndexPage() {
         className="text-white flex h-screen w-full overflow-x-auto p-2"
         style={{ background: "#10171e" }}
       >
-        {markets.map(market => {
-          return <OrderBook key={market.wsname} symbol={market.wsname} />;
+        {markets.map((market, idx) => {
+          return (
+            <OrderBook key={`${market.wsname}:${idx}`} symbol={market.wsname} />
+          );
         })}
       </div>
     </div>
