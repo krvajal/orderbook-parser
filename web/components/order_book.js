@@ -1,9 +1,9 @@
 import React from "react";
 import classNames from "classnames";
-import io from "socket.io-client";
+import { useOrderBook } from "../lib/useOrderBook";
 
 function OrderBook({ symbol }) {
-  const { asks, bids, loading, speed } = useOrderBook({ symbol });
+  const { asks, bids, loading, speed, refresh } = useOrderBook({ symbol });
 
   let [lastAsks, higherAskVol, higherAsk] = React.useMemo(() => {
     let lastAsks = asks
@@ -46,7 +46,7 @@ function OrderBook({ symbol }) {
     <section
       className="font-mono flex flex-col mx-1 h-full rounded-sm flex-shrink-0"
       style={{
-        background: "#15202b"
+        background: "#15202b",
       }}
     >
       <header
@@ -65,7 +65,7 @@ function OrderBook({ symbol }) {
             </tr>
           </thead>
           <tbody>
-            {lastAsks.map(ask => {
+            {lastAsks.map((ask) => {
               return (
                 <Order
                   key={ask[0]}
@@ -78,18 +78,18 @@ function OrderBook({ symbol }) {
           </tbody>
         </table>
 
-        {!loading && (
-          <div className="p-2 text-center">
-            <span className="text-lg">{midPrice.toPrecision(8) || "-"} </span>
-            <br />
-            <span className="text-sm">
-              (Spread: {spread ? (spread * 100).toFixed(3) : "-"}%)
-            </span>
-          </div>
-        )}
+        <div className="p-2 text-center">
+          <span className="text-lg">
+            {!loading ? midPrice?.toPrecision(8) : "-"}{" "}
+          </span>
+          <br />
+          <span className="text-sm">
+            (Spread: {spread ? (spread * 100).toFixed(3) : "-"}%)
+          </span>
+        </div>
         <table className="text-xs w-full">
           <tbody>
-            {lastBids.map(bid => {
+            {lastBids.map((bid) => {
               return (
                 <Order
                   key={bid[0]}
@@ -103,7 +103,11 @@ function OrderBook({ symbol }) {
         </table>
       </div>
       <div className="flex justify-between p-2">
-        <div className="text-xs">Online</div>
+        <div className="text-xs">
+          <button onClick={refresh} disabled={loading}>
+            (refresh)
+          </button>
+        </div>
         <div className="text-xs">
           Speed: {speed ? speed.toFixed(2) : "-"}/min
         </div>
@@ -119,7 +123,7 @@ const Order = React.memo(function Order({ order, side, maxVolumen }) {
         <div
           className={classNames("h-4 opacity-25", {
             "bg-red-600 ": side === "asks",
-            "bg-green-400": side === "bids"
+            "bg-green-400": side === "bids",
           })}
           style={{ width: `${(order[1][0] / maxVolumen) * 100.0}%` }}
         ></div>
@@ -127,7 +131,7 @@ const Order = React.memo(function Order({ order, side, maxVolumen }) {
       <td
         className={classNames("w-24 pl-2 text-right", {
           "text-green-400": side === "bids",
-          "text-red-600": side === "asks"
+          "text-red-600": side === "asks",
         })}
       >
         {order[0]}
@@ -138,97 +142,3 @@ const Order = React.memo(function Order({ order, side, maxVolumen }) {
 });
 
 export default React.memo(OrderBook);
-
-function useOrderBook({ symbol }) {
-  const [loading, setLoading] = React.useState(true);
-  const [speed, setSpeed] = React.useState();
-  const [asks, setAsks] = React.useState([]);
-  const [bids, setBids] = React.useState([]);
-  const [lastPos, setLastPos] = React.useState();
-
-  function updateOrders(orderUpdates, setOrders) {
-    setOrders(orders => {
-      const ordersMap = new Map(orders);
-      for (let [price, vol, timestamp] of orderUpdates) {
-        if (vol != 0) {
-          ordersMap.set(price, [vol, timestamp]);
-        } else {
-          if (ordersMap.has(price)) {
-            ordersMap.delete(price);
-          }
-        }
-      }
-      return Array.from(ordersMap);
-    });
-  }
-
-  React.useEffect(() => {
-    const connection = io(process.env.API_URL, {
-      forceNew: false,
-      transports: ["websocket"]
-    });
-
-    connection.on(`${symbol}:book_snapshot`, onSnapshot);
-    connection.on(`${symbol}:book_update`, onUpdate);
-    connection.on(`${symbol}:speed_update`, onSpeedUpdate);
-    connection.emit("subscribe", { symbol: symbol });
-    connection.on("disconnect", onDisconnect);
-
-    return () => {
-      connection.off(`${symbol}:book_snapshot`, onSnapshot);
-      connection.off(`${symbol}:book_update`, onUpdate);
-      connection.off(`${symbol}:speed_update`, onSpeedUpdate);
-      connection.off("disconnect", onDisconnect);
-    };
-
-    function onUpdate({ pos, asks, bids }) {
-      if (!lastPos || (lastPos && pos === nextPos(lastPos))) {
-        setLastPos(pos);
-        if (asks) {
-          updateOrders(asks, setAsks);
-        }
-        if (bids) {
-          updateOrders(bids, setBids);
-        }
-      } else {
-        // if the order is not correct
-        // it means that we lost an update
-        // so we should try to get a snapshot
-      }
-    }
-
-    function onSnapshot(snapshot) {
-      console.log("snapshot received");
-      setAsks(
-        snapshot.asks.map(([price, vol, timestamp]) => [
-          price,
-          [vol, timestamp]
-        ])
-      );
-      setBids(
-        snapshot.bids.map(([price, vol, timestamp]) => [
-          price,
-          [vol, timestamp]
-        ])
-      );
-      setLoading(false);
-    }
-
-    function onSpeedUpdate(data) {
-      setSpeed(data);
-    }
-
-    function onDisconnect() {
-      console.log("disconnected");
-    }
-  }, []);
-
-  return { loading, speed, bids, asks };
-}
-
-// this should be shared between server and client
-const RANGE = 10;
-
-function nextPos(lastPos) {
-  return (lastPos + 1) % RANGE;
-}
