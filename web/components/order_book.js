@@ -109,7 +109,7 @@ function OrderBook({ symbol }) {
           </button>
         </div>
         <div className="text-xs">
-          Speed: {speed ? speed.toFixed(2) : "-"}/min
+          {speed ? `Speed: ${speed.toFixed(2)}/min` : "-"}
         </div>
       </div>
     </section>

@@ -107,8 +107,11 @@ export function useOrderBook({ symbol }) {
       setSpeed(data);
     }
 
-    function onDisconnect() {
-      log("disconnected");
+    function onDisconnect(reason) {
+      if (reason === "io server disconnect") {
+        // the disconnection was initiated by the server, you need to reconnect manually
+        connectionRef.current?.connect();
+      }
     }
   }, [loading]);
 
