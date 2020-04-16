@@ -4,7 +4,7 @@ const http = require("http");
 const axios = require("axios");
 const cors = require("cors");
 const io = require("socket.io");
-const { OrderBook } = require("./lib/order_book");
+const { getOrderBook } = require("./lib/order_book");
 
 const app = express();
 app.use(cors());
@@ -24,29 +24,16 @@ const httpServer = http.Server(app);
 
 const socketServer = io({ serveClient: false, transports: ["websocket"] });
 
-const exchanges = new Map();
-
-function getExchange(symbol) {
-  let exchange;
-  if (!exchanges.has(symbol)) {
-    exchange = new OrderBook({ symbol });
-    exchanges.set(symbol, exchange);
-  } else {
-    exchange = exchanges.get(symbol);
-  }
-  return exchange;
-}
-
 socketServer.on("connection", function onConnection(socket) {
   let subscriptions = [];
   socket.on("subscribe", ({ symbol }) => {
-    const exchange = getExchange(symbol);
+    const book = getOrderBook(symbol);
 
     subscriptions.push(
-      exchange.subscribe((type, payload) => {
+      book.subscribe((type, payload) => {
         if (type === "snapshot") {
-          const { asks, bids } = payload;
-          socket.emit(`${symbol}:book_snapshot`, { asks, bids });
+          const { asks, bids, pos } = payload;
+          socket.emit(`${symbol}:book_snapshot`, { asks, bids, pos });
         }
         if (type === "update") {
           const { asks, bids, pos } = payload;
@@ -60,13 +47,13 @@ socketServer.on("connection", function onConnection(socket) {
   });
 
   socket.on("disconnect", function onDisconnected() {
-    subscriptions.forEach(unsubscribe => unsubscribe());
+    subscriptions.forEach((unsubscribe) => unsubscribe());
   });
 });
 
 socketServer.attach(httpServer);
 
-httpServer.listen(PORT, "0.0.0.0", err => {
+httpServer.listen(PORT, "0.0.0.0", (err) => {
   if (!err) {
     console.log("Server started on port " + PORT);
   }
